@@ -4,11 +4,13 @@ import (
 	"context"
 
 	"github.com/hashicorp/go-multierror"
-	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
-type CustomizeDiffFunc = func(context.Context, *ResourceDiff, interface{}) error
-type ValueChangeConditionFunc = func(ctx context.Context, old, new, meta interface{}) bool
+type (
+	CustomizeDiffFunc        = func(context.Context, *ResourceDiff, interface{}) error
+	ValueChangeConditionFunc = func(ctx context.Context, old, new, meta interface{}) bool
+)
 
 // CustomDiffWithAll returns a CustomizeDiffFunc that runs all of the given
 // CustomizeDiffFuncs and returns all of the errors produced.
@@ -17,7 +19,7 @@ type ValueChangeConditionFunc = func(ctx context.Context, old, new, meta interfa
 // If this is not desirable, use function Sequence instead.
 //
 // If multiple functions returns errors, the result is a multierror.
-func CustomDiffWithAll(funcs ...CustomizeDiffFunc) CustomizeDiffFunc {
+func CustomDiffWithAll(funcs ...CustomizeDiffFunc) schema.CustomizeDiffFunc {
 	return func(ctx context.Context, d *schema.ResourceDiff, meta interface{}) error {
 		var err error
 		for _, f := range funcs {
@@ -36,9 +38,9 @@ func CustomDiffWithAll(funcs ...CustomizeDiffFunc) CustomizeDiffFunc {
 //
 // If all functions succeed, the combined function also succeeds.
 func CustomDiffInSequence(funcs ...CustomizeDiffFunc) schema.CustomizeDiffFunc {
-	return func(d *schema.ResourceDiff, meta interface{}) error {
+	return func(ctx context.Context, d *schema.ResourceDiff, meta interface{}) error {
 		for _, f := range funcs {
-			err := f(context.TODO(), d, meta)
+			err := f(ctx, d, meta)
 			if err != nil {
 				return err
 			}
@@ -57,10 +59,10 @@ func CustomDiffInSequence(funcs ...CustomizeDiffFunc) schema.CustomizeDiffFunc {
 // only the old and new values of the given key, which leads to more compact
 // and explicit code in the common case where the decision can be made with
 // only the specific field value.
-func ForceNewIfChange(key string, f ValueChangeConditionFunc) schema.CustomizeDiffFunc {
-	return func(d *schema.ResourceDiff, meta interface{}) error {
+func ForceNewIfChange(key string, f ValueChangeConditionFunc) CustomizeDiffFunc {
+	return func(ctx context.Context, d *schema.ResourceDiff, meta interface{}) error {
 		old, new := d.GetChange(key)
-		if f(context.TODO(), old, new, meta) {
+		if f(ctx, old, new, meta) {
 			d.ForceNew(key)
 		}
 		return nil

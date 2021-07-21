@@ -27,8 +27,8 @@ type StateUpgrade interface {
 // which allows us to upgrade the Plugin SDK without breaking all open
 // PR's and attempts to make this interface a little less verbose.
 func StateUpgrades(upgrades map[int]StateUpgrade) []StateUpgrader {
-	versions := make([]int, len(upgrades))
-	for version := range versions {
+	versions := make([]int, 0)
+	for version := range upgrades {
 		versions = append(versions, version)
 	}
 	sort.Ints(versions)
@@ -46,12 +46,10 @@ func StateUpgrades(upgrades map[int]StateUpgrade) []StateUpgrader {
 		resource := Resource{
 			Schema: upgrade.Schema(),
 		}
-		// TODO: with Plugin SDK 1.x we'll need to add a wrapper here to inject ctx
-
 		out = append(out, StateUpgrader{
 			Type: resource.CoreConfigSchema().ImpliedType(),
-			Upgrade: func(rawState map[string]interface{}, meta interface{}) (map[string]interface{}, error) {
-				return upgrade.UpgradeFunc()(context.TODO(), rawState, meta)
+			Upgrade: func(ctx context.Context, rawState map[string]interface{}, meta interface{}) (map[string]interface{}, error) {
+				return upgrade.UpgradeFunc()(ctx, rawState, meta)
 			},
 			Version: version,
 		})

@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/internal/features"
 	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/internal/tf/pluginsdk"
 )
@@ -9,6 +10,22 @@ func schemaFeatures(supportLegacyTestSuite bool) *pluginsdk.Schema {
 	// NOTE: if there's only one nested field these want to be Required (since there's no point
 	//       specifying the block otherwise) - however for 2+ they should be optional
 	features := map[string]*pluginsdk.Schema{
+		// lintignore:XS003
+		"cognitive_account": {
+			Type:     pluginsdk.TypeList,
+			Optional: true,
+			MaxItems: 1,
+			Elem: &pluginsdk.Resource{
+				Schema: map[string]*pluginsdk.Schema{
+					"purge_soft_delete_on_destroy": {
+						Type:     pluginsdk.TypeBool,
+						Optional: true,
+						Default:  true,
+					},
+				},
+			},
+		},
+
 		"key_vault": {
 			Type:     pluginsdk.TypeList,
 			Optional: true,
@@ -68,6 +85,7 @@ func schemaFeatures(supportLegacyTestSuite bool) *pluginsdk.Schema {
 			},
 		},
 
+		// lintignore:XS003
 		"virtual_machine": {
 			Type:     pluginsdk.TypeList,
 			Optional: true,
@@ -82,6 +100,10 @@ func schemaFeatures(supportLegacyTestSuite bool) *pluginsdk.Schema {
 						Type:     pluginsdk.TypeBool,
 						Optional: true,
 					},
+					"skip_shutdown_and_force_delete": {
+						Type:     schema.TypeBool,
+						Optional: true,
+					},
 				},
 			},
 		},
@@ -92,6 +114,10 @@ func schemaFeatures(supportLegacyTestSuite bool) *pluginsdk.Schema {
 			MaxItems: 1,
 			Elem: &pluginsdk.Resource{
 				Schema: map[string]*pluginsdk.Schema{
+					"force_delete": {
+						Type:     pluginsdk.TypeBool,
+						Optional: true,
+					},
 					"roll_instances_when_required": {
 						Type:     pluginsdk.TypeBool,
 						Required: true,
@@ -134,9 +160,19 @@ func expandFeatures(input []interface{}) features.UserFeatures {
 
 	val := input[0].(map[string]interface{})
 
+	if raw, ok := val["cognitive_account"]; ok {
+		items := raw.([]interface{})
+		if len(items) > 0 && items[0] != nil {
+			cognitiveRaw := items[0].(map[string]interface{})
+			if v, ok := cognitiveRaw["purge_soft_delete_on_destroy"]; ok {
+				features.CognitiveAccount.PurgeSoftDeleteOnDestroy = v.(bool)
+			}
+		}
+	}
+
 	if raw, ok := val["key_vault"]; ok {
 		items := raw.([]interface{})
-		if len(items) > 0 {
+		if len(items) > 0 && items[0] != nil {
 			keyVaultRaw := items[0].(map[string]interface{})
 			if v, ok := keyVaultRaw["purge_soft_delete_on_destroy"]; ok {
 				features.KeyVault.PurgeSoftDeleteOnDestroy = v.(bool)
@@ -179,13 +215,16 @@ func expandFeatures(input []interface{}) features.UserFeatures {
 
 	if raw, ok := val["virtual_machine"]; ok {
 		items := raw.([]interface{})
-		if len(items) > 0 {
+		if len(items) > 0 && items[0] != nil {
 			virtualMachinesRaw := items[0].(map[string]interface{})
 			if v, ok := virtualMachinesRaw["delete_os_disk_on_deletion"]; ok {
 				features.VirtualMachine.DeleteOSDiskOnDeletion = v.(bool)
 			}
 			if v, ok := virtualMachinesRaw["graceful_shutdown"]; ok {
 				features.VirtualMachine.GracefulShutdown = v.(bool)
+			}
+			if v, ok := virtualMachinesRaw["skip_shutdown_and_force_delete"]; ok {
+				features.VirtualMachine.SkipShutdownAndForceDelete = v.(bool)
 			}
 		}
 	}
@@ -196,6 +235,9 @@ func expandFeatures(input []interface{}) features.UserFeatures {
 			scaleSetRaw := items[0].(map[string]interface{})
 			if v, ok := scaleSetRaw["roll_instances_when_required"]; ok {
 				features.VirtualMachineScaleSet.RollInstancesWhenRequired = v.(bool)
+			}
+			if v, ok := scaleSetRaw["force_delete"]; ok {
+				features.VirtualMachineScaleSet.ForceDelete = v.(bool)
 			}
 		}
 	}
